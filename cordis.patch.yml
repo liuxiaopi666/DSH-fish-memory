@@ -1,0 +1,8 @@
+# dsh-fish-memory bundle patch：把插件行插进 profile 的插件清单。
+# entry 的 id 就是设置命名空间名（本插件不依赖 DSH settings，但保持 id 与包名区分）。
+- insert:
+    - id: fish-memory
+      name: dsh-fish-memory
+      config:
+        basePath: /fish-memory
+        storeDir: ''

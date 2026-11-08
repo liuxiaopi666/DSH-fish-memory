@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鱼塘记忆 · 分层记忆控制台</title>
+<script>window.__FM_BASE__ = '__BASE__';</script>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#eef2f7;--bg2:#f8fafc;--panel:#fff;--text:#16202e;--muted:#68778c;
+  --border:#dde5ee;--border2:#eef2f7;--accent:#2a6df4;--accent2:#1f57c9;
+  --hot:#e5484d;--recall:#d98a00;--archive:#2a6df4;--cold:#7b8a9e;
+  --ok:#12a594;--err:#d93a3a;
+  --shadow:0 1px 2px rgba(16,32,56,.06),0 4px 14px rgba(16,32,56,.05);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0d1117;--bg2:#131a23;--panel:#161d27;--text:#e6edf5;--muted:#8b9bad;
+    --border:#232c38;--border2:#1c242e;--accent:#5b96ff;--accent2:#3f7fe8;
+    --hot:#ff6b6b;--recall:#f0a92c;--archive:#5b96ff;--cold:#8496ab;
+    --ok:#2ec4a6;--err:#ff6b6b;
+    --shadow:0 1px 2px rgba(0,0,0,.42),0 6px 18px rgba(0,0,0,.34);}
+}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--text);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.app{max-width:1480px;margin:0 auto;padding:18px 16px 64px}
+.hidden{display:none !important}
+h1,h2,h3{margin:0;font-weight:650}
+h1{font-size:19px;letter-spacing:.2px}
+h2{font-size:15px}
+.sub{font-weight:400;font-size:12.5px;color:var(--muted);margin-left:8px}
+
+/* header */
+.hdr{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+.hdr-main{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:5px 12px;display:flex;align-items:baseline;gap:6px}
+.chip-k{font-size:11.5px;color:var(--muted)}
+.chip-v{font-size:13px;font-weight:650;font-family:var(--mono)}
+.chip.ok .chip-v{color:var(--ok)}
+.chip.layer-hot{border-color:var(--hot)}.chip.layer-hot .chip-v{color:var(--hot)}
+.chip.layer-recall{border-color:var(--recall)}.chip.layer-recall .chip-v{color:var(--recall)}
+.chip.layer-archive{border-color:var(--archive)}.chip.layer-archive .chip-v{color:var(--archive)}
+.chip.layer-cold{border-color:var(--cold)}.chip.layer-cold .chip-v{color:var(--cold)}
+
+/* buttons */
+.btn{
+  font:inherit;font-size:12.5px;line-height:1;padding:8px 12px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--border);background:var(--panel);color:var(--text);transition:.15s;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.btn.ghost{background:transparent}
+.btn.danger{border-color:var(--err);color:var(--err);background:transparent}
+.btn.danger:hover{background:var(--err);color:#fff}
+.btn.xs{font-size:11.5px;padding:5px 8px;border-radius:6px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+
+/* inputs */
+.input,select.sel,textarea{
+  font:inherit;font-size:12.5px;color:var(--text);background:var(--panel);
+  border:1px solid var(--border);border-radius:8px;padding:7px 10px;outline:none;
+}
+.input:focus,select.sel:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,109,244,.12)}
+select.sel{padding:5px 8px;font-size:11.5px;border-radius:6px;cursor:pointer}
+textarea{width:100%;min-height:110px;resize:vertical;font-size:13px;line-height:1.6}
+
+/* toolbar */
+.toolbar{display:flex;gap:10px;align-items:center;margin:16px 0;flex-wrap:wrap}
+.search{flex:1 1 320px;min-width:200px;font-size:13px;padding:9px 12px}
+
+/* layers */
+.layers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:1180px){.layers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.layers{grid-template-columns:1fr}.app{padding:12px 10px 48px}}
+.lane{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:11px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.lane-head{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px dashed var(--border)}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.lane-hot .dot{background:var(--hot)}.lane-recall .dot{background:var(--recall)}
+.lane-archive .dot{background:var(--archive)}.lane-cold .dot{background:var(--cold)}
+.lane-name{font-size:13px;font-weight:650}
+.lane-count{margin-left:auto;font:600 11.5px/1 var(--mono);color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:3px 7px}
+.lane-rule{font-size:11px;color:var(--muted);width:100%}
+.lane-cards{display:flex;flex-direction:column;gap:9px}
+.empty{font-size:12px;color:var(--muted);text-align:center;padding:16px 6px;border:1px dashed var(--border);border-radius:9px}
+
+/* card */
+.card{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--cold);border-radius:var(--r);padding:10px 11px;box-shadow:var(--shadow)}
+.card[data-layer="hot"]{border-left-color:var(--hot)}
+.card[data-layer="recall"]{border-left-color:var(--recall)}
+.card[data-layer="archive"]{border-left-color:var(--archive)}
+.card[data-layer="cold"]{border-left-color:var(--cold);opacity:.94}
+.card-head{display:flex;gap:8px;align-items:flex-start}
+.card-title{font-size:13.5px;font-weight:650;line-height:1.4;word-break:break-word;flex:1;min-width:0}
+.card-meta{display:flex;flex-wrap:wrap;gap:5px 5px;margin-top:7px;font-size:11px;color:var(--muted)}
+.pill{font:600 10.5px/1 var(--mono);padding:3px 6px;border-radius:5px;border:1px solid var(--border);background:var(--bg2)}
+.pill.hot{color:var(--hot);border-color:var(--hot)}
+.pill.recall{color:var(--recall);border-color:var(--recall)}
+.pill.archive{color:var(--archive);border-color:var(--archive)}
+.pill.cold{color:var(--cold);border-color:var(--cold)}
+.bar{height:5px;background:var(--border2);border-radius:99px;overflow:hidden;margin-top:8px;border:1px solid var(--border)}
+.bar-in{display:block;height:100%;background:linear-gradient(90deg,var(--cold),var(--accent));border-radius:99px;transition:width .3s}
+.card[data-layer="hot"] .bar-in{background:linear-gradient(90deg,var(--recall),var(--hot))}
+.card[data-layer="recall"] .bar-in{background:linear-gradient(90deg,var(--archive),var(--recall))}
+.card[data-layer="cold"] .bar-in{background:var(--cold)}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.tag{font-size:10.5px;color:var(--accent);background:rgba(42,109,244,.1);border-radius:5px;padding:2px 6px}
+.content{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;word-break:break-word;white-space:pre-wrap;max-height:96px;overflow:hidden}
+.content.open{max-height:none}
+.card-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border)}
+
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin-top:16px;min-width:0}
+.panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.panel-head .grow{flex:1;min-width:0}
+.hint{font-size:11.5px;color:var(--muted);line-height:1.65;background:var(--bg2);border:1px dashed var(--border);border-radius:8px;padding:8px 10px;margin-bottom:12px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+@media (max-width:1024px){.cols{grid-template-columns:1fr}}
+.cols .panel{margin-top:0}
+
+/* form */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11.5px;color:var(--muted)}
+.field .key{font-family:var(--mono);font-size:10.5px;color:var(--muted);opacity:.75}
+.field .input{width:100%}
+.form-actions{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+
+/* index */
+.idx-tokens{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.idx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.idx-block{border:1px solid var(--border);border-radius:9px;padding:9px 10px;background:var(--bg2)}
+.idx-block h3{font-size:12px;margin-bottom:7px;display:flex;gap:6px;align-items:center}
+.idx-row{display:flex;gap:8px;align-items:baseline;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border2)}
+.idx-row:last-child{border-bottom:0}
+.idx-title{flex:1;min-width:0;word-break:break-word}
+.idx-cost{font:600 10.5px/1 var(--mono);color:var(--muted);flex:0 0 auto}
+
+/* audit */
+.list{display:flex;flex-direction:column;gap:6px;max-height:430px;overflow:auto}
+.ev{display:flex;gap:8px;align-items:flex-start;font-size:12px;padding:6px 8px;border-radius:7px;background:var(--bg2);border:1px solid var(--border2)}
+.ev-at{font:500 10.5px/1.4 var(--mono);color:var(--muted);flex:0 0 auto;white-space:nowrap}
+.ev-type{font:600 10px/1 var(--mono);padding:3px 6px;border-radius:5px;background:var(--border);color:var(--text);flex:0 0 auto;text-transform:uppercase;letter-spacing:.4px}
+.ev-type.t-read,.ev-type.t-recall{background:rgba(18,165,148,.16);color:var(--ok)}
+.ev-type.t-decay{background:rgba(217,138,0,.16);color:var(--recall)}
+.ev-type.t-move{background:rgba(42,109,244,.16);color:var(--accent)}
+.ev-type.t-forget,.ev-type.t-delete{background:rgba(217,58,58,.16);color:var(--err)}
+.ev-type.t-revive,.ev-type.t-create{background:rgba(123,138,158,.2);color:var(--muted)}
+.ev-body{flex:1;min-width:0;word-break:break-word}
+.ev-detail{color:var(--muted);font-size:11.5px}
+
+/* tombstone row */
+.tomb{display:flex;gap:9px;align-items:center;font-size:12px;padding:7px 9px;border:1px dashed var(--border);border-radius:8px;background:var(--bg2)}
+.tomb-title{flex:1;min-width:0;word-break:break-word;text-decoration:line-through;opacity:.8}
+
+/* toast */
+.toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:100;max-width:min(420px,92vw)}
+.toast{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:9px;padding:10px 13px;font-size:12.5px;box-shadow:0 8px 26px rgba(0,0,0,.18);color:var(--text);animation:tin .18s ease-out;word-break:break-word}
+.toast.err{border-left-color:var(--err)}
+.toast.ok{border-left-color:var(--ok)}
+.toast.warn{border-left-color:var(--recall)}
+.toast.out{opacity:0;transform:translateY(6px);transition:.28s}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(8,14,24,.5);display:flex;align-items:center;justify-content:center;z-index:120;padding:16px}
+.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;width:min(640px,100%);max-height:86vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.modal-box h2{margin-bottom:12px;font-size:15px}
+.mfield{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
+.mfield label{font-size:11.5px;color:var(--muted)}
+.banner{border:1px solid var(--err);border-left:3px solid var(--err);background:rgba(217,58,58,.08);color:var(--err);border-radius:9px;padding:10px 12px;font-size:12.5px;margin-top:14px}
+.mono{font-family:var(--mono)}
+
+/* ---- dashboard v2: legend / tag cloud / tag-first search ---- */
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.swatch{width:16px;height:8px;border-radius:3px;flex:0 0 auto;display:inline-block}
+.swatch.hot{background:var(--hot)}.swatch.recall{background:var(--recall)}
+.swatch.archive{background:var(--archive)}.swatch.cold{background:var(--cold)}
+.tagbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 14px}
+.tagbar-title{font-size:12px;font-weight:650;color:var(--muted)}
+.tagbar-total,.empty-inline{font-size:11.5px;color:var(--muted)}
+.tagchip{font:inherit;font-size:11.5px;line-height:1;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;cursor:pointer;color:var(--text);background:var(--bg2);border:1px solid var(--border);transition:.15s}
+.tagchip:hover{border-color:var(--accent);color:var(--accent)}
+.tagchip.on{background:rgba(42,109,244,.14);border-color:var(--accent);color:var(--accent);font-weight:650}
+.tagchip .tc-n{font:600 10.5px/1 var(--mono);color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:2px 5px}
+.tagchip.on .tc-n{color:var(--accent);border-color:var(--accent)}
+.filterbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding:7px 10px;border-radius:9px;background:rgba(42,109,244,.08);border:1px solid rgba(42,109,244,.28)}
+.fb-label{font-size:11.5px;color:var(--muted)}
+.fb-tag{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:650;color:var(--accent);background:var(--panel);border:1px solid var(--accent);border-radius:999px;padding:3px 5px 3px 8px}
+.fb-x{border:0;background:transparent;color:var(--accent);cursor:pointer;font:inherit;font-size:13px;line-height:1;padding:0 2px}
+.fb-count{font-size:11.5px;color:var(--muted);margin-left:auto}
+.srch-sec{margin-top:10px}
+.srch-sec h3{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.sec-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.tag-dot{background:var(--recall)}
+.title-dot{background:var(--accent)}
+.sec-count{font:600 10.5px/1 var(--mono);color:var(--muted);background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:3px 6px}
+.srch-list{display:flex;flex-direction:column;gap:7px}
+.srch-item{border:1px solid var(--border);border-left:3px solid var(--cold);border-radius:9px;background:var(--bg2);padding:8px 10px;cursor:pointer;transition:.15s}
+.srch-item:hover{border-color:var(--accent);background:var(--panel)}
+.srch-item[data-layer="hot"]{border-left-color:var(--hot)}
+.srch-item[data-layer="recall"]{border-left-color:var(--recall)}
+.srch-item[data-layer="archive"]{border-left-color:var(--archive)}
+.srch-item[data-layer="cold"]{border-left-color:var(--cold)}
+.srch-head{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.srch-title{font-size:13px;font-weight:650;flex:1;min-width:120px;word-break:break-word}
+.srch-meta{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:11px;color:var(--muted)}
+.match-pill{font:600 10px/1 var(--mono);padding:3px 6px;border-radius:5px;border:1px solid var(--border);background:var(--panel);text-transform:uppercase;letter-spacing:.3px}
+.match-pill.m-exact{color:var(--ok);border-color:var(--ok)}
+.match-pill.m-prefix{color:var(--recall);border-color:var(--recall)}
+.match-pill.m-substring{color:var(--accent);border-color:var(--accent)}
+mark.hl{background:rgba(217,138,0,.3);color:inherit;border-radius:3px;padding:0 2px;font-weight:700}
+.srch-guide{border:1px dashed var(--border);border-radius:10px;padding:11px 12px;background:var(--bg2);margin-top:12px}
+.srch-guide-h{font-size:12px;color:var(--muted);line-height:1.7}
+.card[data-layer="hot"]{background:linear-gradient(0deg,rgba(229,72,77,.055),rgba(229,72,77,.055)),var(--panel)}
+.card[data-layer="recall"]{background:linear-gradient(0deg,rgba(217,138,0,.06),rgba(217,138,0,.06)),var(--panel)}
+.card[data-layer="archive"]{background:linear-gradient(0deg,rgba(42,109,244,.055),rgba(42,109,244,.055)),var(--panel)}
+.card[data-layer="cold"]{background:linear-gradient(0deg,rgba(123,138,158,.07),rgba(123,138,158,.07)),var(--panel);opacity:.96}
+.card{padding:9px 10px}
+.card-meta{margin-top:6px;gap:4px 6px}
+.content{margin-top:7px;max-height:72px}
+.tag{font:inherit;font-size:10.5px;color:var(--accent);background:rgba(42,109,244,.1);border:0;border-radius:5px;padding:3px 6px;cursor:pointer}
+.tag:hover{background:rgba(42,109,244,.22)}
+.tag.on{background:var(--accent);color:#fff;cursor:default}
+.tag.mini{cursor:default;font-size:10px;padding:2px 5px}
+.idx-tags{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
+.read-body{font-size:12.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;max-height:46vh;overflow:auto}
+.skl{background:linear-gradient(90deg,var(--border2) 25%,var(--border) 37%,var(--border2) 63%);background-size:400% 100%;border-radius:7px;height:11px;animation:shim 1.3s ease-in-out infinite}
+@keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@media (max-width:720px){
+  .legend{gap:5px 10px}
+  .legend-item{font-size:11px}
+  .search{flex:1 1 100%}
+  .tagchip{font-size:11px;padding:5px 8px}
+  .srch-title{flex:1 1 100%}
+  .fb-count{margin-left:0}
+  .panel,.hdr{padding-left:12px;padding-right:12px}
+}
+  /* ---- tag map (标签神经网络图) ---- */
+  .tagmap-tools{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:2px 0 10px;font-size:12px;color:var(--muted)}
+  .tagmap-tools label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .tm-legend{display:inline-flex;flex-wrap:wrap;gap:12px;margin-left:auto}
+  .tm-legend span{display:inline-flex;align-items:center;gap:5px}
+  .tm-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .tagmap-wrap{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:14px;background:radial-gradient(circle at 28% 22%, rgba(42,109,244,.10), transparent 58%),radial-gradient(circle at 76% 74%, rgba(18,165,148,.10), transparent 55%), var(--bg2)}
+  .tagmap-wrap svg{display:block;width:100%;height:auto;touch-action:none;cursor:grab}
+  .tagmap-wrap svg:active{cursor:grabbing}
+  .tm-hintline{font-size:11.5px;color:var(--muted);margin:8px 0 12px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <div class="hdr-main">
+      <h1>🐟 鱼塘记忆<span class="sub">分层记忆控制台 · hot / recall / archive / cold</span></h1>
+      <div class="hdr-actions">
+        <button class="btn ghost" id="btn-refresh">刷新</button>
+        <button class="btn" id="btn-tagmap">标签网络</button>
+        <button class="btn" id="btn-index">AI 现在能看到什么</button>
+        <button class="btn primary" id="btn-new">+ 新建记忆</button>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="legend" id="legend">
+      <span class="legend-item"><i class="swatch hot"></i>hot · 工作记忆（默认可见，受 token 预算约束）</span>
+      <span class="legend-item"><i class="swatch recall"></i>recall · 按需检索（新记忆默认落这里）</span>
+      <span class="legend-item"><i class="swatch archive"></i>archive · 只留标题</span>
+      <span class="legend-item"><i class="swatch cold"></i>cold · 冷存，需显式复活</span>
+    </div>
+    <div class="filterbar hidden" id="filterbar"></div>
+    <div class="banner hidden" id="banner"></div>
+  </header>
+
+  <div class="toolbar">
+    <input class="input search" id="q" type="search" placeholder="输入关键词 → 回车：标签优先检索（点「清空」回到列表）…" autocomplete="off">
+    <select class="sel" id="q-mode" title="检索模式">
+      <option value="auto">auto · 标签优先</option>
+      <option value="tag">tag · 只搜标签</option>
+      <option value="title">title · 只搜标题</option>
+    </select>
+    <button class="btn primary" id="btn-search">检索</button>
+    <button class="btn ghost" id="btn-clear">清空</button>
+    <select class="sel" id="sort-mode" title="列表排序（四层内通用，按记忆的录入时间/分数）">
+      <option value="strength">按分数（默认）</option>
+      <option value="time">按时间：新→旧</option>
+      <option value="old">按时间：旧→新</option>
+      <option value="updated">按最近改动</option>
+    </select>
+  </div>
+
+  <section class="panel hidden" id="tagmap-panel">
+    <div class="panel-head">
+      <div class="grow"><h2>标签网络<span class="sub">标签＝节点，共现＝连线；点节点过滤，拖拽挪动，滚轮缩放</span></h2></div>
+      <button class="btn ghost" id="btn-tagmap-layout">重新布局</button>
+      <button class="btn ghost" id="btn-tagmap-close">收起</button>
+    </div>
+    <div class="tagmap-tools">
+      <label><input type="checkbox" id="tm-show-edges" checked> 连线</label>
+      <label><input type="checkbox" id="tm-show-labels" checked> 标签名</label>
+      <span class="tm-legend" id="tm-legend"></span>
+    </div>
+    <div class="tagmap-wrap" id="tagmap-wrap">
+      <svg id="tagmap-svg" viewBox="0 0 900 540" preserveAspectRatio="xMidYMid meet" aria-label="标签神经网络图"></svg>
+    </div>
+    <div class="tm-hintline">两个标签出现在同一条记忆里就连一条线，线越粗＝一起出现得越多。悬停某标签会点亮它的邻居；点标签＝按它过滤下面的记忆列表（再点取消）。</div>
+    <div class="tagbar" id="tagbar"><span class="tagbar-title">标签云</span><span class="empty-inline">加载中…</span></div>
+  </section>
+
+  <section class="panel hidden" id="search-panel">
+    <div class="panel-head">
+      <div class="grow"><h2>标签优先检索结果<span class="sub" id="search-sub"></span></h2></div>
+      <button class="btn ghost" id="btn-search-close">关闭</button>
+    </div>
+    <div class="hint">检索顺序：<b>先标签命中</b>（标签是稀疏索引，意图更准、更省 token），<b>再标题命中</b>。点任意结果 = 调 <span class="mono">/api/read</span> 看全文，这次读取算一次<b>回忆强化</b>。</div>
+    <div id="search-body"></div>
+  </section>
+
+  <section class="panel hidden" id="index-panel">
+    <div class="panel-head">
+      <div class="grow"><h2>AI 默认可见的记忆索引</h2></div>
+      <button class="btn ghost" id="btn-index-close">收起</button>
+    </div>
+    <div class="hint">这一屏就是 AI 在没有主动回忆时能"看到"的东西：<b>只有标题</b>。正文必须显式回忆（read）才会载入，而每次回忆都会给那条记忆 <span class="mono">strength += recallBoost</span>——越常用的记忆越容易留在 hot 层。</div>
+    <div class="idx-tokens" id="idx-tokens"></div>
+    <div class="idx-grid" id="idx-grid"></div>
+  </section>
+
+  <section class="layers" id="layers"></section>
+
+  <section class="panel" id="tomb-panel">
+    <div class="panel-head">
+      <div class="grow"><h2>墓碑（已硬删除，可复活）</h2></div>
+      <button class="btn ghost" id="btn-tomb-refresh">刷新墓碑</button>
+    </div>
+    <div class="hint">硬删除不是销毁：记忆正文连同标签被写进 tombstones，随时可以点「复活」重新回到 hot 层。只有主动重置才会真正清空。</div>
+    <div class="list" id="tomb-list"></div>
+  </section>
+
+  <div class="cols">
+    <section class="panel" id="config-panel">
+      <div class="panel-head">
+        <div class="grow"><h2>控制面板</h2></div>
+        <button class="btn ghost" id="btn-decay">立即跑一轮衰减</button>
+      </div>
+      <div class="hint">衰减**按每条记忆自己的时长结算**：<span class="mono">strength *= decayFactor ^ (距上次结算的小时数 ÷ 衰减单位)</span> —— 刚录入 10 分钟的就只扣 10 分钟的量，一周没读的才扣满；读一次（回忆）会重新计时。然后按三个阈值重新分层；hot 层还有 <span class="mono">hotBudgetTokens</span> 硬预算。改完点「保存参数」。</div>
+      <div class="form-grid" id="config-fields"></div>
+      <div class="form-actions">
+        <button class="btn primary" id="btn-save-config">保存参数</button>
+        <button class="btn ghost" id="btn-reload-config">还原为服务器值</button>
+      </div>
+      <div id="decay-out"></div>
+      <div class="form-actions">
+        <button class="btn danger" id="btn-reset">清空全部记忆（危险）</button>
+      </div>
+    </section>
+
+    <section class="panel" id="audit-panel">
+      <div class="panel-head">
+        <div class="grow"><h2>审计日志 · 最近 80 条</h2></div>
+        <button class="btn ghost" id="btn-audit">刷新日志</button>
+      </div>
+      <div class="hint">每次回忆、升降层、衰减、删除都会落一条事件，方便复盘"这条记忆为什么掉到 cold 了"。</div>
+      <div class="list" id="audit-list"></div>
+    </section>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="modal hidden" id="read-modal">
+  <div class="modal-box">
+    <h2 id="read-title">记忆全文</h2>
+    <div class="card-meta" id="read-meta" style="margin-bottom:8px"></div>
+    <div class="read-body" id="read-body"></div>
+    <div class="hint" style="margin:12px 0 0" id="read-note"></div>
+    <div class="form-actions">
+      <button class="btn primary" id="read-ok">知道了</button>
+      <button class="btn ghost" id="read-edit">编辑这条</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="modal">
+  <div class="modal-box">
+    <h2 id="modal-title">编辑记忆</h2>
+    <div class="mfield"><label>标题</label><input class="input" id="m-title" type="text" placeholder="一句话概括这条记忆"></div>
+    <div class="mfield"><label>正文</label><textarea id="m-content" placeholder="完整的记忆内容；只有被回忆时才载入 token"></textarea></div>
+    <div class="mfield"><label>标签（逗号分隔，可留空）</label><input class="input" id="m-tags" type="text" placeholder="项目, 偏好, 待办"></div>
+    <div class="form-actions">
+      <button class="btn primary" id="modal-save">保存</button>
+      <button class="btn ghost" id="modal-cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var LAYERS = ['hot','recall','archive','cold'];
+  var LAYER_META = {
+    hot:     {name:'hot 工作记忆',  desc:'默认可见（标题）'},
+    recall:  {name:'recall 按需检索',desc:'要检索才翻出来'},
+    archive: {name:'archive 只留标题',desc:'正文基本不再载入'},
+    cold:    {name:'cold 冷存',     desc:'需显式复活'}
+  };
+
+  var S = {config:{}, stats:{}, memories:[], tombstones:[], audit:[], index:null, transitions:null, tags:[], search:null};
+  var query = '';
+  var searchQuery = '';
+  var searchMode = 'auto';
+  var searchBusy = false;
+  var filterTags = [];
+  var readId = null;
+  var loading = true;
+  var tagsLoaded = false;
+  var tagsError = '';
+  var expanded = {};
+  var maxStrength = 5;
+  var sortMode = 'strength';
+  var cfgBuilt = false;
+  var modalMode = null;
+  var modalId = null;
+  var SESSION_ID = 'dash_' + Math.random().toString(36).slice(2,10);
+
+  function $(id){ return document.getElementById(id); }
+  function esc(v){
+    return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function(c){
+      if (c === '&') return '&amp;';
+      if (c === '<') return '&lt;';
+      if (c === '>') return '&gt;';
+      if (c === '"') return '&quot;';
+      return '&#39;';
+    });
+  }
+  function hi(text, q){
+    var s = String(text === null || text === undefined ? '' : text);
+    var needle = String(q === null || q === undefined ? '' : q).trim();
+    if (!needle) return esc(s);
+    var low = s.toLowerCase(), ln = needle.toLowerCase(), out = '', i = 0;
+    while (i < s.length){
+      var idx = low.indexOf(ln, i);
+      if (idx < 0){ out += esc(s.slice(i)); break; }
+      out += esc(s.slice(i, idx)) + '<mark class="hl">' + esc(s.slice(idx, idx + ln.length)) + '</mark>';
+      i = idx + ln.length;
+    }
+    return out;
+  }
+  function fmtNum(n){
+    if (n === null || n === undefined || n === '' || isNaN(Number(n))) return '0';
+    return Number(n).toLocaleString('zh-CN');
+  }
+  function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+  function toMs(v){
+    if (v === null || v === undefined || v === '' || v === 0) return 0;
+    var t = v;
+    if (typeof t === 'string'){ var p = Date.parse(t); if (isNaN(p)) return 0; return p; }
+    if (typeof t !== 'number' || !isFinite(t)) return 0;
+    if (t < 100000000000) t = t * 1000;
+    return t;
+  }
+  function fmtTime(v){
+    var t = toMs(v);
+    if (!t) return '—';
+    var d = new Date(t);
+    if (isNaN(d.getTime())) return '—';
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function fmtAgo(v){
+    var t = toMs(v);
+    if (!t) return '从未回忆';
+    var diff = Date.now() - t;
+    if (diff < 0) diff = 0;
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return mins + ' 分钟前';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + ' 小时前';
+    return Math.floor(hrs / 24) + ' 天前';
+  }
+
+  /* ---------- toast ---------- */
+  function toast(msg, kind){
+    var box = $('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast ' + (kind || 'info');
+    el.textContent = String(msg);
+    box.appendChild(el);
+    var life = kind === 'err' ? 5600 : 3200;
+    setTimeout(function(){
+      el.className = el.className + ' out';
+      setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+    }, life);
+  }
+
+  /* ---------- api ---------- */
+  function api(path, opts){
+    var o = opts || {};
+    var init = { method: o.method || 'GET', headers: {} };
+    if (o.body !== undefined){
+      init.body = JSON.stringify(o.body);
+      init.headers['Content-Type'] = 'application/json';
+    }
+    var url = window.__FM_BASE__ + path;
+    return fetch(url, init).then(function(res){
+      return res.text().then(function(txt){
+        var data = {};
+        if (txt && txt.length){
+          try { data = JSON.parse(txt); }
+          catch(e){ throw new Error('服务器返回的不是 JSON（HTTP ' + res.status + '）：' + txt.slice(0, 120)); }
+        }
+        if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status + ' ' + (res.statusText || '')));
+        if (data && data.ok === false) throw new Error(data.error || '请求失败');
+        return data;
+      });
+    }).catch(function(err){
+      if (err && err.message && err.message.length) throw err;
+      throw new Error('无法连接记忆服务：' + path);
+    });
+  }
+  function get(path){ return api(path); }
+  function post(path, body){ return api(path, {method:'POST', body: body || {}}); }
+
+  /* ---------- config helpers ---------- */
+  var CFG_SPEC = [
+    {label:'衰减因子 decayFactor',      paths:['decayFactor'],                    step:'0.01', hint:'每轮强度乘以它，0.98 = 每轮 -2%'},
+    {label:'衰减单位（小时）',           paths:['decayIntervalHours','decayInterval'], step:'1', hint:'每过这么多小时，该记忆自己扣一次 decayFactor（每条从自己的录入/上次回忆算起）'},
+    {label:'结算节拍（分钟）',           paths:['decayTickMinutes'],              step:'1', hint:'插件多久扫一次账；每条按自己的时长扣，扫得勤不会多扣'},
+    {label:'hot 最低 strength',         paths:['hotMin','hotThreshold','thresholds.hot','layerThresholds.hot','minHot'], step:'0.1'},
+    {label:'recall 最低 strength',      paths:['recallMin','recallThreshold','thresholds.recall','layerThresholds.recall','minRecall'], step:'0.1'},
+    {label:'archive 最低 strength',     paths:['archiveMin','archiveThreshold','thresholds.archive','layerThresholds.archive','minArchive'], step:'0.1'},
+    {label:'hot 层 token 预算',         paths:['hotBudgetTokens','hotBudget','hotTokenBudget','budgetTokens'], step:'50', hint:'hot 标题 token 超出预算即沉到 recall'},
+    {label:'去重窗口（分钟）',           paths:['dedupeWindowMinutes','dedupeMinutes','dedupeWindow'], step:'1', hint:'同一 session 内的重复回忆不重复计数'},
+    {label:'回忆加成 recallBoost',      paths:['recallBoost','boost'],             step:'0.1'},
+    {label:'新建强度 createStrength',   paths:['createStrength'],                  step:'0.1'},
+    {label:'复活强度 reviveStrength',   paths:['reviveStrength'],                  step:'0.1'}
+  ];
+  var CFG_PATHS = [];
+
+  function pathGet(obj, path){
+    var parts = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length; i++){
+      if (cur === null || cur === undefined || typeof cur !== 'object') return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function resolvePath(spec){
+    for (var i = 0; i < spec.paths.length; i++){
+      if (pathGet(S.config, spec.paths[i]) !== undefined) return spec.paths[i];
+    }
+    return spec.paths[0];
+  }
+  function makePatch(path, val){
+    var parts = path.split('.');
+    var root = {};
+    var cur = root;
+    for (var i = 0; i < parts.length - 1; i++){
+      cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    cur[parts[parts.length - 1]] = val;
+    return root;
+  }
+  function deepMerge(a, b){
+    var out = {};
+    var k;
+    for (k in a){ if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k]; }
+    for (k in b){
+      if (!Object.prototype.hasOwnProperty.call(b, k)) continue;
+      var av = out[k], bv = b[k];
+      if (av && bv && typeof av === 'object' && typeof bv === 'object' && !Array.isArray(av) && !Array.isArray(bv)){
+        out[k] = deepMerge(av, bv);
+      } else { out[k] = bv; }
+    }
+    return out;
+  }
+  function cfgNum(path, dflt){
+    var v = pathGet(S.config, path);
+    if (v === undefined || v === null || v === '' || isNaN(Number(v))) return dflt;
+    return Number(v);
+  }
+  function thresholds(){
+    return {
+      hot: cfgNum(resolvePath(CFG_SPEC[2]), 5),
+      recall: cfgNum(resolvePath(CFG_SPEC[3]), 2),
+      archive: cfgNum(resolvePath(CFG_SPEC[4]), 0.5),
+      budget: cfgNum(resolvePath(CFG_SPEC[5]), 1200)
+    };
+  }
+
+  /* ---------- render: stats ---------- */
+  function chip(k, v, cls){
+    return '<div class="chip ' + (cls || '') + '"><span class="chip-k">' + esc(k) + '</span><span class="chip-v">' + esc(v) + '</span></div>';
+  }
+  function renderStats(){
+    var s = S.stats || {};
+    var by = s.byLayer || {};
+    var tk = s.tokens || {};
+    var out = [];
+    out.push(chip('记忆总数', fmtNum(s.total !== undefined ? s.total : S.memories.length), ''));
+    out.push(chip('hot', fmtNum(by.hot), 'layer-hot'));
+    out.push(chip('recall', fmtNum(by.recall), 'layer-recall'));
+    out.push(chip('archive', fmtNum(by.archive), 'layer-archive'));
+    out.push(chip('cold', fmtNum(by.cold), 'layer-cold'));
+    out.push(chip('总点击', fmtNum(s.totalClicks), ''));
+    if (typeof s.avgStrength === 'number') out.push(chip('平均 strength', s.avgStrength.toFixed(2), ''));
+    var savedPct = 0;
+    if (typeof tk.savedPct === 'number') savedPct = tk.savedPct * 100;
+    else if (tk.fullTokens) savedPct = (tk.savedTokens / tk.fullTokens) * 100;
+    out.push(chip('节省 token', (isFinite(savedPct) ? savedPct.toFixed(1) : '0.0') + '%', 'ok'));
+    out.push(chip('省下 / 全量', fmtNum(tk.savedTokens) + ' / ' + fmtNum(tk.fullTokens), ''));
+    out.push(chip('标题 token', fmtNum(tk.titleTokens), ''));
+    out.push(chip('上次衰减', fmtTime(s.lastDecayAt), ''));
+    out.push(chip('下次衰减', fmtTime(s.nextDecayAt), ''));
+    $('stats').innerHTML = out.join('');
+  }
+
+  /* ---------- render: cards ---------- */
+  function matches(m, q){
+    if (!q) return true;
+    var hay = String(m.title || '') + ' ' + String(m.content || '') + ' ' + (Array.isArray(m.tags) ? m.tags.join(' ') : '');
+    return hay.toLowerCase().indexOf(q) >= 0;
+  }
+  function memTags(m){
+    if (!m || !Array.isArray(m.tags)) return [];
+    return m.tags.filter(function(t){ return String(t === null || t === undefined ? '' : t).length > 0; }).map(String);
+  }
+  function tagFiltered(m){
+    if (!filterTags.length) return true;
+    var own = memTags(m).map(function(t){ return t.toLowerCase(); });
+    for (var i = 0; i < filterTags.length; i++){
+      if (own.indexOf(String(filterTags[i]).toLowerCase()) < 0) return false;
+    }
+    return true;
+  }
+  function isTagOn(tag){
+    for (var i = 0; i < filterTags.length; i++){
+      if (String(filterTags[i]).toLowerCase() === String(tag).toLowerCase()) return true;
+    }
+    return false;
+  }
+  function activeFilterCount(){
+    var q = String(query || '').trim().toLowerCase();
+    return S.memories.filter(function(m){ return tagFiltered(m) && matches(m, q); }).length;
+  }
+  function buildCard(m){
+    var th = thresholds();
+    var strength = typeof m.strength === 'number' ? m.strength : Number(m.strength || 0);
+    if (!isFinite(strength)) strength = 0;
+    var pct = maxStrength > 0 ? Math.min(100, Math.max(2, (strength / maxStrength) * 100)) : 2;
+    var content = String(m.content || '');
+    var isOpen = !!expanded[m.id];
+    var preview = isOpen ? content : (content.length > 120 ? content.slice(0, 120) + '…' : content);
+    var tags = Array.isArray(m.tags) ? m.tags : [];
+    var tagHtml = tags.map(function(t){
+      var on = isTagOn(t);
+      return '<button type="button" class="tag' + (on ? ' on' : '') + '" data-tagfilter="' + esc(t) + '" title="按标签 #' + esc(t) + ' 过滤 / 再点取消">#' + esc(t) + '</button>';
+    }).join('');
+    var layer = m.layer && LAYER_META[m.layer] ? m.layer : 'cold';
+    var opts = LAYERS.map(function(L){
+      return '<option value="' + L + '"' + (L === layer ? ' selected' : '') + '>' + L + '</option>';
+    }).join('');
+    var canSink = layer !== 'cold';
+    var h = '';
+    h += '<article class="card" data-layer="' + layer + '" data-id="' + esc(m.id) + '">';
+    h +=   '<div class="card-head"><div class="card-title">' + esc(m.title || '(无标题)') + '</div></div>';
+    h +=   '<div class="card-meta">';
+    h +=     '<span class="pill ' + layer + '">' + layer + '</span>';
+    h +=     '<span class="mono">strength ' + strength.toFixed(2) + '</span>';
+    h +=     '<span>🔥 点击 ' + fmtNum(m.clicks) + '</span>';
+    h +=     '<span>距上次回忆 ' + esc(fmtAgo(m.lastReadAt)) + '</span>';
+    h +=     '<span title="录入时间">🗓 录入 ' + esc(fmtTime(m.createdAt)) + '</span>';
+    if (m.contentTokens !== undefined) h += '<span class="mono">' + fmtNum(m.contentTokens) + ' tok</span>';
+    h +=   '</div>';
+    h +=   '<div class="bar"><i class="bar-in" style="width:' + pct.toFixed(1) + '%"></i></div>';
+    if (tagHtml) h += '<div class="tags">' + tagHtml + '</div>';
+    if (content){
+      h += '<div class="content' + (isOpen ? ' open' : '') + '">' + esc(preview) + '</div>';
+      if (content.length > 120){
+        h += '<div class="card-actions" style="border-top:0;padding-top:4px;margin-top:2px">';
+        h += '<button class="btn xs ghost" data-act="toggle">' + (isOpen ? '收起正文' : '展开全文（不算回忆）') + '</button></div>';
+      }
+    }
+    h +=   '<div class="card-actions">';
+    h +=     '<button class="btn xs primary" data-act="read" title="读全文并强化">回忆</button>';
+    h +=     '<button class="btn xs" data-act="edit">编辑</button>';
+    h +=     '<select class="sel" data-act="move" title="人工换层">' + opts + '</select>';
+    h += canSink ? '<button class="btn xs" data-act="sink" title="沉到下一层">下沉</button>'
+                 : '<button class="btn xs" disabled title="已在最冷层 cold，无法继续下沉">下沉</button>';
+    h += '<button class="btn xs" data-act="revive" title="复活回 hot（墓碑的 id 也可）">复活</button>';
+    h +=     '<button class="btn xs danger" data-act="hard" title="进墓碑，可复活">硬删除</button>';
+    h +=   '</div>';
+    h += '</article>';
+    return h;
+  }
+  function timeMs(v){
+    if (!v) return 0;
+    var t = Date.parse(v);
+    return isNaN(t) ? 0 : t;
+  }
+  function compareMem(a, b){
+    if (sortMode === 'time') return timeMs(b.createdAt) - timeMs(a.createdAt) || String(a.title || '').localeCompare(String(b.title || ''));
+    if (sortMode === 'old') return timeMs(a.createdAt) - timeMs(b.createdAt) || String(a.title || '').localeCompare(String(b.title || ''));
+    if (sortMode === 'updated') return timeMs(b.updatedAt) - timeMs(a.updatedAt) || String(a.title || '').localeCompare(String(b.title || ''));
+    var av = Number(a.strength || 0), bv = Number(b.strength || 0);
+    if (bv !== av) return bv - av;
+    return String(a.title || '').localeCompare(String(b.title || ''));
+  }
+  function laneRule(layer, th){
+    if (layer === 'hot') return 'strength ≥ ' + th.hot + ' 且受 ' + th.budget + ' token 预算约束';
+    if (layer === 'recall') return 'strength ≥ ' + th.recall;
+    if (layer === 'archive') return 'strength ≥ ' + th.archive;
+    return 'strength < ' + th.archive + '，需显式复活';
+  }
+  function renderLayers(){
+    if (loading && !S.memories.length){ $('layers').innerHTML = renderLanesSkeleton(); return; }
+    var th = thresholds();
+    maxStrength = Math.max(th.hot, 5);
+    S.memories.forEach(function(m){
+      var v = typeof m.strength === 'number' ? m.strength : Number(m.strength || 0);
+      if (isFinite(v) && v > maxStrength) maxStrength = v;
+    });
+    var q = String(query || '').trim().toLowerCase();
+    var filtering = !!q || filterTags.length > 0;
+    var html = '';
+    LAYERS.forEach(function(layer){
+      var items = S.memories.filter(function(m){ return (m.layer || 'cold') === layer; });
+      var shown = items.filter(function(m){ return tagFiltered(m) && matches(m, q); });
+      shown.sort(compareMem);
+      var meta = LAYER_META[layer];
+      html += '<section class="lane lane-' + layer + '">';
+      html +=   '<div class="lane-head"><span class="dot"></span>';
+      html +=     '<span class="lane-name">' + esc(meta.name) + '</span>';
+      html +=     '<span class="lane-count">' + shown.length + (filtering && shown.length !== items.length ? '/' + items.length : '') + '</span>';
+      html +=   '</div>';
+      html +=   '<div class="lane-rule">' + esc(meta.desc) + ' · ' + esc(laneRule(layer, th)) + '</div>';
+      html +=   '<div class="lane-cards">';
+      if (!shown.length) html += '<div class="empty">' + (filtering ? '没有满足当前过滤的记忆' : '本层暂无记忆') + '</div>';
+      for (var i = 0; i < shown.length; i++) html += buildCard(shown[i]);
+      html +=   '</div>';
+      html += '</section>';
+    });
+    $('layers').innerHTML = html;
+  }
+
+  /* ---------- render: tombstones ---------- */
+  function renderTombstones(){
+    var box = $('tomb-list');
+    var list = Array.isArray(S.tombstones) ? S.tombstones : [];
+    if (!list.length){ box.innerHTML = '<div class="empty">暂无墓碑</div>'; return; }
+    var h = '';
+    list.forEach(function(t){
+      h += '<div class="tomb" data-id="' + esc(t.id) + '">';
+      h +=   '<span class="ev-type">墓碑</span>';
+      h +=   '<span class="tomb-title">' + esc(t.title || '(无标题)') + '</span>';
+      h +=   '<span class="mono" style="font-size:10.5px;color:var(--muted)">删于 ' + esc(fmtTime(t.deletedAt || t.at || t.updatedAt)) + '</span>';
+      h +=   '<button class="btn xs" data-act="tomb-revive">复活</button>';
+      h += '</div>';
+    });
+    box.innerHTML = h;
+  }
+
+  /* ---------- render: config ---------- */
+  function renderConfig(force){
+    if (cfgBuilt && !force) return;
+    CFG_PATHS = [];
+    var h = '';
+    CFG_SPEC.forEach(function(spec, i){
+      var path = resolvePath(spec);
+      CFG_PATHS[i] = path;
+      var v = pathGet(S.config, path);
+      if (v === undefined || v === null || typeof v === 'object') v = '';
+      h += '<div class="field">';
+      h +=   '<label>' + esc(spec.label) + '</label>';
+      h +=   '<input class="input" type="number" step="' + spec.step + '" data-cfg="' + i + '" value="' + esc(v) + '">';
+      h +=   '<span class="key">' + esc(path) + (spec.hint ? ' · ' + esc(spec.hint) : '') + '</span>';
+      h += '</div>';
+    });
+    $('config-fields').innerHTML = h;
+    cfgBuilt = true;
+  }
+
+  /* ---------- render: index ---------- */
+  function renderIndex(){
+    var d = S.index;
+    var panel = $('index-panel');
+    if (!d){ panel.className = 'panel hidden'; return; }
+    panel.className = 'panel';
+    var tk = d.tokens || {};
+    var savedPct = 0;
+    if (typeof tk.savedPct === 'number') savedPct = tk.savedPct * 100;
+    else if (tk.totalTokens) savedPct = (tk.savedTokens / tk.totalTokens) * 100;
+    var th = [];
+    th.push('<div class="chip"><span class="chip-k">标题 token（默认可见）</span><span class="chip-v">' + fmtNum(tk.titleTokens) + '</span></div>');
+    th.push('<div class="chip"><span class="chip-k">全量正文 token 估算</span><span class="chip-v">' + fmtNum(tk.totalTokens) + '</span></div>');
+    th.push('<div class="chip ok"><span class="chip-k">省下</span><span class="chip-v">' + fmtNum(tk.savedTokens) + '（' + (isFinite(savedPct) ? savedPct.toFixed(1) : '0.0') + '%）</span></div>');
+    $('idx-tokens').innerHTML = th.join('');
+    var layers = d.layers || {};
+    var g = '';
+    LAYERS.forEach(function(layer){
+      var arr = Array.isArray(layers[layer]) ? layers[layer] : [];
+      g += '<div class="idx-block">';
+      g +=   '<h3><span class="pill ' + layer + '">' + layer + '</span><span style="color:var(--muted);font-weight:400">' + arr.length + ' 条</span></h3>';
+      if (!arr.length) g += '<div class="empty" style="padding:10px 4px;font-size:11.5px">无</div>';
+      arr.forEach(function(it){
+        var itags = Array.isArray(it.tags) ? it.tags.filter(function(t){ return String(t === null || t === undefined ? '' : t).length > 0; }) : [];
+        var tstr = itags.length ? '<span class="idx-tags">' + itags.map(function(t){ return '<span class="tag mini">#' + esc(t) + '</span>'; }).join('') + '</span>' : '';
+        g += '<div class="idx-row"><span class="idx-title">' + esc(it.title || '(无标题)') + tstr + '</span><span class="idx-cost">' + fmtNum(it.tokens) + 't</span></div>';
+      });
+      g += '</div>';
+    });
+    $('idx-grid').innerHTML = g;
+  }
+
+  /* ---------- render: tag cloud / filter bar ---------- */
+  function tagLayerTitle(m){
+    var by = (m && m.byLayer) ? m.byLayer : {};
+    return LAYERS.map(function(L){ return L + ' ' + fmtNum(by[L]); }).join(' · ');
+  }
+  function renderTags(){
+    if (TM.open) tmRefresh();
+    var box = $('tagbar');
+    if (!box) return;
+    var tags = Array.isArray(S.tags) ? S.tags : [];
+    if (!filterTags.length && !tags.length && !tagsLoaded){
+      box.innerHTML = '<span class="tagbar-title">标签云</span><span class="empty-inline">加载中…</span>';
+      return;
+    }
+    if (tagsError && !tags.length){
+      box.innerHTML = '<span class="tagbar-title">标签云</span><span class="empty-inline">加载失败：' + esc(tagsError) + '</span>';
+      return;
+    }
+    if (!tags.length){
+      box.innerHTML = '<span class="tagbar-title">标签云</span><span class="empty-inline">还没有任何标签；新建或编辑记忆时填「标签」即可</span>';
+      return;
+    }
+    var h = '<span class="tagbar-title">标签云</span>';
+    h += '<span class="tagbar-total">共 ' + tags.length + ' 个 · 点击过滤，再点取消</span>';
+    tags.forEach(function(t){
+      var on = isTagOn(t.tag);
+      h += '<button type="button" class="tagchip' + (on ? ' on' : '') + '" data-tagfilter="' + esc(t.tag) + '" title="层级分布：' + esc(tagLayerTitle(t)) + '">#' + esc(t.tag) + '<i class="tc-n">' + fmtNum(t.count) + '</i></button>';
+    });
+    box.innerHTML = h;
+  }
+  function renderFilterBar(){
+    var bar = $('filterbar');
+    if (!bar) return;
+    if (!filterTags.length){ bar.className = 'filterbar hidden'; bar.innerHTML = ''; return; }
+    var h = '<span class="fb-label">当前过滤：</span>';
+    filterTags.forEach(function(t){
+      h += '<span class="fb-tag">#' + esc(t) + '<button type="button" class="fb-x" data-tagfilter="' + esc(t) + '" title="取消该标签">×</button></span>';
+    });
+    h += '<span class="fb-count">命中 ' + activeFilterCount() + ' 条</span>';
+    h += '<button class="btn xs ghost" id="btn-filter-clear">一键清除</button>';
+    bar.className = 'filterbar';
+    bar.innerHTML = h;
+    var c = $('btn-filter-clear');
+    if (c) c.addEventListener('click', function(){
+      filterTags = [];
+      renderLayers(); renderTags(); renderFilterBar();
+      toast('已清除标签过滤');
+    });
+  }
+  function toggleTagFilter(tag, mode){
+    tag = String(tag === null || tag === undefined ? '' : tag).trim();
+    if (!tag) return;
+    if (mode === 'replace'){ filterTags = [tag]; closeSearch(); }
+    else {
+      var idx = -1;
+      for (var i = 0; i < filterTags.length; i++){
+        if (String(filterTags[i]).toLowerCase() === tag.toLowerCase()){ idx = i; break; }
+      }
+      if (idx >= 0) filterTags.splice(idx, 1); else filterTags.push(tag);
+    }
+    renderLayers(); renderTags(); renderFilterBar();
+    toast(filterTags.length ? ('已按标签过滤：' + filterTags.map(function(t){ return '#' + t; }).join(' ')) : '已取消标签过滤', filterTags.length ? 'ok' : 'info');
+  }
+  function renderLanesSkeleton(){
+    var h = '';
+    LAYERS.forEach(function(layer){
+      h += '<section class="lane lane-' + layer + '">';
+      h +=   '<div class="lane-head"><span class="dot"></span><span class="lane-name">' + esc(LAYER_META[layer].name) + '</span></div>';
+      h +=   '<div class="lane-cards">';
+      for (var i = 0; i < 2; i++){
+        h += '<div class="card" data-layer="' + layer + '"><div class="skl" style="width:72%"></div><div class="skl" style="width:44%;margin-top:7px"></div><div class="skl" style="width:88%;margin-top:7px"></div></div>';
+      }
+      h +=   '</div></section>';
+    });
+    return h;
+  }
+
+  /* ---------- render: tag-first search ---------- */
+  function matchLabel(m){
+    if (m === 'exact') return '精确';
+    if (m === 'prefix') return '前缀';
+    if (m === 'substring') return '片段';
+    return String(m === null || m === undefined ? '命中' : m);
+  }
+  function scoreStr(v){
+    if (typeof v === 'number' && isFinite(v)) return v.toFixed(2);
+    if (v === undefined || v === null || v === '') return '—';
+    return String(v);
+  }
+  function closeSearch(){
+    S.search = null;
+    searchBusy = false;
+    var p = $('search-panel');
+    if (p) p.className = 'panel hidden';
+  }
+  function runSearch(){
+    var qEl = $('q');
+    var q = String(qEl && qEl.value || '').trim();
+    searchMode = $('q-mode') ? ($('q-mode').value || 'auto') : 'auto';
+    if (!q){ toast('先输入关键词，再回车/点「检索」', 'warn'); if (qEl) qEl.focus(); return; }
+    searchQuery = q;
+    searchBusy = true;
+    $('search-panel').className = 'panel';
+    $('search-sub').textContent = '「' + q + '」 · mode=' + searchMode;
+    $('search-body').innerHTML = '<div class="empty">检索中…（先标签、后标题）</div>';
+    post('/api/search', { query: q, mode: searchMode, limit: 30 }).then(function(d){
+      searchBusy = false;
+      S.search = d || {};
+      renderSearch();
+    }).catch(function(err){
+      searchBusy = false;
+      S.search = null;
+      $('search-body').innerHTML = '<div class="empty">检索失败：' + esc(err.message) + '</div>';
+      toast('检索失败：' + err.message, 'err');
+    });
+  }
+  function searchRow(it, isTag){
+    var layer = (it && LAYER_META[it.layer]) ? it.layer : 'cold';
+    var h = '<div class="srch-item" data-srch="' + esc(it.id) + '" data-layer="' + layer + '" role="button" tabindex="0">';
+    h += '<div class="srch-head">';
+    if (isTag && it.tag) h += '<span class="tag on" style="cursor:default">#' + esc(it.tag) + '</span>';
+    h += '<span class="srch-title">' + hi(it.title || '(无标题)', searchQuery) + '</span>';
+    h += '<span class="pill ' + layer + '">' + layer + '</span>';
+    h += '</div>';
+    h += '<div class="srch-meta">';
+    h += '<span class="match-pill m-' + esc(String(it.match || '').toLowerCase()) + '">' + esc(matchLabel(it.match)) + '</span>';
+    h += '<span class="mono">score ' + esc(scoreStr(it.score)) + '</span>';
+    h += '<span class="mono">strength ' + esc(scoreStr(it.strength)) + '</span>';
+    h += '<span class="mono">clicks ' + fmtNum(it.clicks) + '</span>';
+    h += '<span>点击看全文（算一次回忆强化）</span>';
+    h += '</div></div>';
+    return h;
+  }
+  function renderSearch(){
+    var d = S.search;
+    if (!d) return;
+    var th = Array.isArray(d.tagHits) ? d.tagHits : [];
+    var ti = Array.isArray(d.titleHits) ? d.titleHits : [];
+    var all = Array.isArray(d.allTags) ? d.allTags : [];
+    var h = '';
+    h += '<div class="srch-sec"><h3><span class="sec-dot tag-dot"></span>标签命中<span class="sec-count">' + th.length + '</span></h3>';
+    if (th.length){
+      h += '<div class="srch-list">';
+      th.forEach(function(it){ h += searchRow(it, true); });
+      h += '</div>';
+    } else h += '<div class="empty">没有标签命中</div>';
+    h += '</div>';
+    h += '<div class="srch-sec"><h3><span class="sec-dot title-dot"></span>标题命中<span class="sec-count">' + ti.length + '</span></h3>';
+    if (ti.length){
+      h += '<div class="srch-list">';
+      ti.forEach(function(it){ h += searchRow(it, false); });
+      h += '</div>';
+    } else h += '<div class="empty">没有标题命中</div>';
+    h += '</div>';
+    if (!th.length && !ti.length){
+      h += '<div class="srch-guide">';
+      h += '<div class="srch-guide-h">两段都没有命中「<b>' + esc(searchQuery) + '</b>」。可以换个词（同义词、更短的关键词），或者直接点下面任一标签过滤记忆列表。</div>';
+      if (all.length){
+        h += '<div class="tagbar" style="margin:10px 0 0">';
+        all.forEach(function(t){
+          h += '<button type="button" class="tagchip" data-tagfilter="' + esc(t.tag) + '" data-mode="replace">#' + esc(t.tag) + '<i class="tc-n">' + fmtNum(t.count) + '</i></button>';
+        });
+        h += '</div>';
+      } else {
+        h += '<div class="empty" style="margin-top:10px">这台记忆库里还没有任何标签</div>';
+      }
+      h += '</div>';
+    }
+    $('search-body').innerHTML = h;
+  }
+  function openRead(m, id, counted){
+    readId = id || (m && m.id) || null;
+    $('read-title').textContent = m ? (m.title || '(无标题)') : '(未在本地列表中找到这条)';
+    var layer = (m && LAYER_META[m.layer]) ? m.layer : '';
+    var meta = [];
+    if (layer) meta.push('<span class="pill ' + layer + '">' + layer + '</span>');
+    if (m){
+      meta.push('<span class="mono">strength ' + esc(scoreStr(m.strength)) + '</span>');
+      meta.push('<span class="mono">clicks ' + fmtNum(m.clicks) + '</span>');
+      meta.push('<span>距上次回忆 ' + esc(fmtAgo(m.lastReadAt)) + '</span>');
+      var mt = memTags(m);
+      if (mt.length) meta.push(mt.map(function(t){ return '<span class="tag mini">#' + esc(t) + '</span>'; }).join(''));
+    }
+    $('read-meta').innerHTML = meta.join('');
+    $('read-body').textContent = (m && m.content) ? m.content : '(这条记忆没有正文，或已不在本地列表，点「刷新」重载)';
+    $('read-note').innerHTML = (counted === false)
+      ? '本次读取处于去重窗口内，<b>不计数</b>：同一 session 里重复回忆同一条只算一次。'
+      : '这次读取算一次<b>回忆强化</b>：<span class="mono">strength += recallBoost</span>、<span class="mono">clicks += 1</span>，层级会刷新回 hot；去重窗口内的重复读取不计。';
+    $('read-modal').className = 'modal';
+  }
+  function closeRead(){
+    $('read-modal').className = 'modal hidden';
+    readId = null;
+  }
+
+  /* ---------- render: audit ---------- */
+  function renderAudit(){
+    var box = $('audit-list');
+    var events = Array.isArray(S.audit) ? S.audit : [];
+    if (!events.length){ box.innerHTML = '<div class="empty">暂无审计事件</div>'; return; }
+    var h = '';
+    events.forEach(function(e){
+      var type = String(e.type || 'event');
+      h += '<div class="ev">';
+      h +=   '<span class="ev-at">' + esc(fmtTime(e.at)) + '</span>';
+      h +=   '<span class="ev-type t-' + esc(type.toLowerCase()) + '">' + esc(type) + '</span>';
+      h +=   '<span class="ev-body">' + esc(e.title || e.id || '') + (e.detail ? '<div class="ev-detail">' + esc(e.detail) + '</div>' : '') + '</span>';
+      h += '</div>';
+    });
+    box.innerHTML = h;
+  }
+
+  function renderAll(){
+    renderStats();
+    renderLayers();
+    renderTags();
+    renderFilterBar();
+    renderTombstones();
+    renderConfig(false);
+  }
+
+  /* ---------- loaders ---------- */
+  function setBanner(msg){
+    var b = $('banner');
+    if (!msg){ b.className = 'banner hidden'; b.textContent = ''; return; }
+    b.className = 'banner';
+    b.textContent = msg;
+  }
+  function loadState(){
+    loading = true;
+    return get('/api/state').then(function(d){
+      loading = false;
+      S.config = d.config || {};
+      S.stats = d.stats || {};
+      S.memories = Array.isArray(d.memories) ? d.memories : [];
+      S.tombstones = Array.isArray(d.tombstones) ? d.tombstones : null;
+      setBanner('');
+      renderAll();
+      if (!Array.isArray(S.tombstones)){
+        return get('/api/tombstones').then(function(t){
+          S.tombstones = Array.isArray(t.tombstones) ? t.tombstones : [];
+          renderTombstones();
+        }).catch(function(){ S.tombstones = []; renderTombstones(); });
+      }
+    }).catch(function(err){
+      loading = false;
+      setBanner('无法连接记忆服务：' + err.message + '　（检查插件是否在运行、地址是否为 ' + (window.__FM_BASE__ || '(standalone 根路径)') + '）');
+      toast('加载失败：' + err.message, 'err');
+      renderLayers();
+      throw err;
+    });
+  }
+  function loadAudit(){
+    return get('/api/audit?limit=80').then(function(d){
+      S.audit = Array.isArray(d.events) ? d.events : [];
+      renderAudit();
+    }).catch(function(err){
+      toast('审计日志加载失败：' + err.message, 'err');
+      $('audit-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    });
+  }
+  function loadTombstones(){
+    return get('/api/tombstones').then(function(d){
+      S.tombstones = Array.isArray(d.tombstones) ? d.tombstones : [];
+      renderTombstones();
+    }).catch(function(err){ toast('墓碑加载失败：' + err.message, 'err'); });
+  }
+  function loadTags(){
+    return get('/api/tags').then(function(d){
+      S.tags = Array.isArray(d.tags) ? d.tags.slice() : [];
+      S.tags.sort(function(a, b){
+        var ac = Number(a && a.count || 0), bc = Number(b && b.count || 0);
+        if (bc !== ac) return bc - ac;
+        return String(a && a.tag || '').localeCompare(String(b && b.tag || ''));
+      });
+      tagsLoaded = true; tagsError = '';
+      renderTags(); renderFilterBar(); renderLayers();
+    }).catch(function(err){
+      tagsLoaded = true; tagsError = err.message;
+      renderTags();
+      toast('标签云加载失败：' + err.message, 'err');
+    });
+  }
+  function loadIndex(){
+    return get('/api/index').then(function(d){
+      S.index = d;
+      renderIndex();
+      $('index-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }).catch(function(err){ toast('索引加载失败：' + err.message, 'err'); });
+  }
+
+  /* ---------- actions ---------- */
+  function findMem(id){
+    for (var i = 0; i < S.memories.length; i++){ if (S.memories[i].id === id) return S.memories[i]; }
+    return null;
+  }
+  function actRead(id){
+    return post('/api/read', { id: id, sessionId: SESSION_ID }).then(function(d){
+      var m = d.memory || findMem(id);
+      var counted = d.counted !== false;
+      openRead(m, id, counted);
+      if (counted) toast('已回忆并强化：strength +' + cfgNum(resolvePath(CFG_SPEC[7]), 1), 'ok');
+      else toast('已读取全文，但处于 ' + cfgNum(resolvePath(CFG_SPEC[6]), 30) + ' 分钟去重窗口内，本次不计数', 'warn');
+      return loadState();
+    }).catch(function(err){ toast('回忆失败：' + err.message, 'err'); });
+  }
+  function actMove(id, layer){
+    post('/api/move', { id: id, layer: layer }).then(function(){
+      toast('已换层到 ' + layer, 'ok');
+      return loadState();
+    }).catch(function(err){ toast('换层失败：' + err.message, 'err'); loadState().catch(function(){}); });
+  }
+  function actSink(id){
+    post('/api/forget', { id: id, hard: false }).then(function(){
+      toast('已下沉一层', 'ok');
+      return loadState();
+    }).catch(function(err){ toast('下沉失败：' + err.message, 'err'); });
+  }
+  function actHard(id){
+    var m = findMem(id);
+    var name = m && m.title ? m.title : id;
+    if (!window.confirm('硬删除「' + name + '」？\n\n它会进入墓碑（可复活），不会立刻消失。')) return;
+    post('/api/forget', { id: id, hard: true }).then(function(){
+      toast('已进墓碑，可在「墓碑」区复活', 'ok');
+      return loadState().then(loadTombstones).catch(function(){});
+    }).catch(function(err){ toast('删除失败：' + err.message, 'err'); });
+  }
+  function actRevive(id){
+    post('/api/revive', { id: id }).then(function(){
+      toast('已复活，回到 hot 层', 'ok');
+      return loadState().then(loadTombstones).catch(function(){});
+    }).catch(function(err){ toast('复活失败：' + err.message, 'err'); });
+  }
+  function actDecay(){
+    post('/api/decay', {}).then(function(d){
+      var tr = Array.isArray(d.transitions) ? d.transitions : [];
+      var out = $('decay-out');
+      var h = '<div class="hint" style="margin-top:14px">本轮衰减完成（' + esc(fmtTime(d.at)) + '），共 ' + tr.length + ' 条记忆换了层：</div>';
+      if (!tr.length) h += '<div class="empty">本层稳定，没有发生层级变化</div>';
+      else {
+        h += '<div class="list">';
+        tr.forEach(function(t){
+          h += '<div class="ev"><span class="ev-type t-decay">' + esc(t.from) + '→' + esc(t.to) + '</span><span class="ev-body">' + esc(t.title || t.id) + '</span></div>';
+        });
+        h += '</div>';
+      }
+      out.innerHTML = h;
+      toast('已跑完一轮衰减，' + tr.length + ' 条换层', 'ok');
+      return loadState().then(loadAudit).catch(function(){});
+    }).catch(function(err){ toast('衰减失败：' + err.message, 'err'); });
+  }
+  function saveConfig(){
+    var patch = {};
+    var bad = false;
+    CFG_SPEC.forEach(function(spec, i){
+      var el = document.querySelector('[data-cfg="' + i + '"]');
+      if (!el) return;
+      var v = el.value;
+      if (v === '' || v === null || isNaN(Number(v))){ bad = true; return; }
+      patch = deepMerge(patch, makePatch(CFG_PATHS[i], Number(v)));
+    });
+    if (bad){ toast('有参数不是有效数字，请检查后再保存', 'err'); return; }
+    post('/api/config', { patch: patch }).then(function(d){
+      if (d.config) S.config = d.config;
+      renderConfig(true);
+      toast('参数已保存', 'ok');
+      return loadState();
+    }).catch(function(err){ toast('保存失败：' + err.message, 'err'); });
+  }
+  function doReset(){
+    if (!window.confirm('重置会清空全部记忆、墓碑与层级状态，无法撤销。\n\n确定继续？')) return;
+    if (!window.confirm('再次确认：真的要清空全部记忆吗？')) return;
+    post('/api/reset', { confirm: 'RESET' }).then(function(){
+      toast('已重置全部记忆', 'ok');
+      return loadState().then(loadAudit).catch(function(){});
+    }).catch(function(err){ toast('重置失败：' + err.message, 'err'); });
+  }
+
+  /* ---------- modal ---------- */
+  function openModal(mode, m){
+    modalMode = mode;
+    modalId = m ? m.id : null;
+    $('modal-title').textContent = mode === 'create' ? '新建记忆' : '编辑记忆';
+    $('m-title').value = m ? (m.title || '') : '';
+    $('m-content').value = m ? (m.content || '') : '';
+    $('m-tags').value = m && Array.isArray(m.tags) ? m.tags.join(', ') : '';
+    $('modal').className = 'modal';
+    setTimeout(function(){ $('m-title').focus(); }, 30);
+  }
+  function closeModal(){
+    $('modal').className = 'modal hidden';
+    modalMode = null;
+    modalId = null;
+  }
+  function saveModal(){
+    var title = String($('m-title').value || '').trim();
+    var content = String($('m-content').value || '');
+    var tags = String($('m-tags').value || '').split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+    if (!title){ toast('标题不能为空', 'err'); $('m-title').focus(); return; }
+    var btn = $('modal-save');
+    btn.setAttribute('disabled', 'disabled');
+    var req;
+    if (modalMode === 'create') req = post('/api/create', { title: title, content: content, tags: tags });
+    else req = post('/api/update', { id: modalId, title: title, content: content, tags: tags });
+    req.then(function(){
+      toast(modalMode === 'create' ? '已新建记忆' : '已保存修改', 'ok');
+      closeModal();
+      return loadState();
+    }).catch(function(err){ toast('保存失败：' + err.message, 'err'); })
+      .then(function(){ btn.removeAttribute('disabled'); });
+  }
+
+  /* ---------- events ---------- */
+  function bind(){
+    $('btn-refresh').addEventListener('click', function(){
+      loadState().then(function(){ toast('已刷新', 'ok'); return loadAudit(); }).catch(function(){});
+    });
+    $('btn-index').addEventListener('click', function(){
+      var p = $('index-panel');
+      if (p.className.indexOf('hidden') < 0 && S.index){ p.className = 'panel hidden'; return; }
+      loadIndex();
+    });
+    $('btn-index-close').addEventListener('click', function(){
+      $('index-panel').className = 'panel hidden';
+    });
+    $('btn-tagmap').addEventListener('click', tmToggle);
+    $('btn-tagmap-close').addEventListener('click', tmClose);
+    $('btn-tagmap-layout').addEventListener('click', function(){ TM.sig = ''; tmRefresh(); toast('已重新布局标签网络'); });
+    var tmE = $('tm-show-edges'), tmL = $('tm-show-labels');
+    if (tmE) tmE.addEventListener('change', function(){ TM.showEdges = !!tmE.checked; tmApplyToggles(); });
+    if (tmL) tmL.addEventListener('change', function(){ TM.showLabels = !!tmL.checked; tmApplyToggles(); });
+    var tsvg = $('tagmap-svg');
+    if (tsvg){
+      tsvg.addEventListener('pointerdown', function(e){ TM.pan = { x:e.clientX, y:e.clientY, vx:TM.view.x, vy:TM.view.y }; });
+      tsvg.addEventListener('wheel', tmWheel, { passive:false });
+    }
+    document.addEventListener('pointermove', tmPointerMove);
+    document.addEventListener('pointerup', tmPointerUp);
+    window.addEventListener('resize', function(){ if (TM.open) tmRefresh(); });
+
+    $('btn-new').addEventListener('click', function(){ openModal('create', null); });
+
+    var qEl = $('q');
+    qEl.addEventListener('input', function(){
+      query = qEl.value;
+      if (S.search && String(query || '').trim() !== searchQuery){ closeSearch(); }
+      renderLayers();
+      renderFilterBar();
+    });
+    qEl.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){ e.preventDefault(); runSearch(); }
+    });
+    $('q-mode').addEventListener('change', function(){
+      searchMode = $('q-mode').value || 'auto';
+      if (String(qEl.value || '').trim()) runSearch();
+    });
+    var sortEl = $('sort-mode');
+    if (sortEl){
+      sortMode = sortEl.value || 'strength';
+      sortEl.addEventListener('change', function(){
+        sortMode = sortEl.value || 'strength';
+        renderLayers();
+        toast(sortMode === 'time' ? '已按录入时间 新→旧 排列'
+            : sortMode === 'old' ? '已按录入时间 旧→新 排列'
+            : sortMode === 'updated' ? '已按最近改动排列' : '已按分数排列');
+      });
+    }
+    $('btn-search').addEventListener('click', runSearch);
+    $('btn-search-close').addEventListener('click', closeSearch);
+    $('btn-clear').addEventListener('click', function(){
+      qEl.value = ''; query = ''; filterTags = [];
+      closeSearch();
+      renderLayers(); renderTags(); renderFilterBar();
+    });
+
+    $('btn-tomb-refresh').addEventListener('click', loadTombstones);
+    $('btn-audit').addEventListener('click', function(){ loadAudit().then(function(){ toast('日志已刷新', 'ok'); }); });
+    $('btn-decay').addEventListener('click', actDecay);
+    $('btn-save-config').addEventListener('click', saveConfig);
+    $('btn-reload-config').addEventListener('click', function(){ renderConfig(true); toast('已还原为服务器当前值'); });
+    $('btn-reset').addEventListener('click', doReset);
+
+    $('modal-save').addEventListener('click', saveModal);
+    $('modal-cancel').addEventListener('click', closeModal);
+    $('modal').addEventListener('click', function(e){
+      if (e.target === $('modal')) closeModal();
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape') return;
+      if ($('modal').className.indexOf('hidden') < 0) closeModal();
+      else if ($('read-modal').className.indexOf('hidden') < 0) closeRead();
+    });
+    $('read-ok').addEventListener('click', closeRead);
+    $('read-edit').addEventListener('click', function(){
+      var m = findMem(readId);
+      if (!m){ toast('这条记忆不在当前列表里，先点「刷新」再编辑', 'warn'); return; }
+      closeRead();
+      openModal('edit', m);
+    });
+    $('read-modal').addEventListener('click', function(e){
+      if (e.target === $('read-modal')) closeRead();
+    });
+    document.addEventListener('click', function(e){
+      var el = e.target;
+      if (!el || typeof el.closest !== 'function') return;
+      var tf = el.closest('[data-tagfilter]');
+      if (tf){
+        e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        toggleTagFilter(tf.getAttribute('data-tagfilter'), tf.getAttribute('data-mode') || 'toggle');
+        return;
+      }
+      var sr = el.closest('[data-srch]');
+      if (sr){
+        if (e.stopPropagation) e.stopPropagation();
+        actRead(sr.getAttribute('data-srch'));
+      }
+    }, true);
+
+    $('layers').addEventListener('click', function(e){
+      var btn = e.target.closest('[data-act]');
+      if (!btn || btn.tagName === 'SELECT') return;
+      var act = btn.getAttribute('data-act');
+      var card = btn.closest('.card');
+      if (!card) return;
+      var id = card.getAttribute('data-id');
+      if (act === 'read') actRead(id);
+      else if (act === 'edit') openModal('edit', findMem(id));
+      else if (act === 'sink') actSink(id);
+      else if (act === 'revive') actRevive(id);
+      else if (act === 'hard') actHard(id);
+      else if (act === 'toggle'){
+        expanded[id] = !expanded[id];
+        renderLayers();
+      }
+    });
+    $('layers').addEventListener('change', function(e){
+      var sel = e.target;
+      if (!sel || sel.tagName !== 'SELECT' || sel.getAttribute('data-act') !== 'move') return;
+      var card = sel.closest('.card');
+      if (!card) return;
+      actMove(card.getAttribute('data-id'), sel.value);
+    });
+    $('tomb-list').addEventListener('click', function(e){
+      var btn = e.target.closest('[data-act="tomb-revive"]');
+      if (!btn) return;
+      var row = btn.closest('.tomb');
+      if (!row) return;
+      actRevive(row.getAttribute('data-id'));
+    });
+  }
+
+  /* ---------- 标签网络（标签神经网络图） ---------- */
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var TM_GROUPS = [
+    { name:'类别', color:'#2a6df4', tags:['偏好','需求','机制','配置','运维','设定','授权','问题'] },
+    { name:'系统', color:'#12a594', tags:['记忆系统','情绪系统','日记系统','上下文洞察'] },
+    { name:'场景', color:'#d98a00', tags:['B站','QQ','桥接','工作桥','评论区','朋友'] },
+    { name:'载体', color:'#8b5cf6', tags:['插件','界面','模型','工具'] },
+    { name:'角色', color:'#e5484d', tags:['人设','监工'] }
+  ];
+  var TM = {
+    open:false, sig:'', nodes:[], edges:[], byTag:{}, el:null,
+    raf:0, alpha:1, W:0, H:0, hover:null, drag:null, pan:null, dragMoved:false,
+    view:{ x:0, y:0, k:1 }, showEdges:true, showLabels:true
+  };
+  function tmGroupOf(tag){
+    for (var i=0;i<TM_GROUPS.length;i++){ if (TM_GROUPS[i].tags.indexOf(tag) >= 0) return TM_GROUPS[i]; }
+    return { name:'其他', color:'#7b8a9e', tags:[] };
+  }
+  function tmRadius(count){ var c = Number(count)||0; return Math.max(9, Math.min(34, 9 + Math.sqrt(c) * 4.2)); }
+  function tmSignature(){
+    var t = (S.tags||[]).map(function(x){ return String(x.tag) + ':' + x.count; }).join('|');
+    var m = (S.memories||[]).map(function(x){ return String(x.id) + '#' + memTags(x).join(','); }).join(';');
+    return t + '//' + m;
+  }
+  function tmBuild(){
+    var tags = Array.isArray(S.tags) ? S.tags : [];
+    var nodes = [], byTag = {};
+    tags.forEach(function(t){
+      if (!t || !t.tag) return;
+      var tag = String(t.tag), g = tmGroupOf(tag);
+      var n = { tag:tag, count:Number(t.count||0), byLayer:t.byLayer||{}, group:g.name, color:g.color,
+                x:0, y:0, vx:0, vy:0, r:tmRadius(t.count), fixed:false };
+      nodes.push(n); byTag[tag] = n;
+    });
+    var pair = {};
+    (S.memories||[]).forEach(function(m){
+      var seen = {}, uniq = [];
+      memTags(m).forEach(function(t){ if (byTag[t] && !seen[t]){ seen[t] = 1; uniq.push(t); } });
+      for (var i=0;i<uniq.length;i++){
+        for (var j=i+1;j<uniq.length;j++){
+          var a = uniq[i], b = uniq[j];
+          var key = a < b ? a + '|~|' + b : b + '|~|' + a;
+          pair[key] = (pair[key]||0) + 1;
+        }
+      }
+    });
+    var edges = [];
+    Object.keys(pair).forEach(function(k){ var p = k.split('|~|'); edges.push({ a:p[0], b:p[1], w:pair[k] }); });
+    var groups = {}, order = [];
+    nodes.forEach(function(n){ if (!groups[n.group]){ groups[n.group] = []; order.push(n.group); } groups[n.group].push(n); });
+    var cx = (TM.W||800)/2, cy = (TM.H||520)/2;
+    order.forEach(function(gn, gi){
+      var arr = groups[gn];
+      var base = (gi / Math.max(1, order.length)) * Math.PI * 2 - Math.PI/2;
+      var R = 150 + arr.length * 9;
+      arr.forEach(function(n, i){
+        var a = base + (i / Math.max(1, arr.length)) * 1.25 - 0.6;
+        var j = ((i * 37) % 11) / 11;
+        n.x = cx + Math.cos(a) * R * (0.75 + 0.5 * j);
+        n.y = cy + Math.sin(a) * R * 0.72 * (0.75 + 0.5 * j);
+        n.vx = 0; n.vy = 0;
+      });
+    });
+    TM.nodes = nodes; TM.edges = edges; TM.byTag = byTag; TM.alpha = 1;
+  }
+  function tmStep(){
+    var n = TM.nodes, e = TM.edges, W = TM.W||800, H = TM.H||520, i, j, a, b, dx, dy, d2, d, f, ux, uy;
+    var cx = W/2, cy = H/2;
+    for (i=0;i<n.length;i++){ n[i].fx = 0; n[i].fy = 0; }
+    for (i=0;i<n.length;i++){
+      for (j=i+1;j<n.length;j++){
+        a = n[i]; b = n[j];
+        dx = b.x - a.x; dy = b.y - a.y; d2 = dx*dx + dy*dy;
+        if (d2 < 1) d2 = 1;
+        d = Math.sqrt(d2);
+        var rep = 5600 / (d2 + 260);
+        ux = dx/d; uy = dy/d;
+        a.fx -= ux*rep; a.fy -= uy*rep;
+        b.fx += ux*rep; b.fy += uy*rep;
+        var min = a.r + b.r + 8;
+        if (d < min){ var push = (min - d) * 0.3; a.fx -= ux*push; a.fy -= uy*push; b.fx += ux*push; b.fy += uy*push; }
+      }
+    }
+    for (i=0;i<e.length;i++){
+      a = TM.byTag[e[i].a]; b = TM.byTag[e[i].b];
+      if (!a || !b) continue;
+      dx = b.x - a.x; dy = b.y - a.y; d = Math.sqrt(dx*dx + dy*dy) || 1;
+      var desire = 170 - Math.min(80, e[i].w * 10);
+      f = (d - desire) * 0.012 * (0.7 + Math.min(1.5, e[i].w * 0.3));
+      ux = dx/d; uy = dy/d;
+      a.fx += ux*f; a.fy += uy*f;
+      b.fx -= ux*f; b.fy -= uy*f;
+    }
+    for (i=0;i<n.length;i++){
+      a = n[i];
+      a.fx += (cx - a.x) * 0.012;
+      a.fy += (cy - a.y) * 0.014;
+      if (a.fixed){ a.vx = 0; a.vy = 0; continue; }
+      a.vx = (a.vx + a.fx) * 0.86;
+      a.vy = (a.vy + a.fy) * 0.86;
+      a.x += Math.max(-11, Math.min(11, a.vx));
+      a.y += Math.max(-11, Math.min(11, a.vy));
+      a.x = Math.max(a.r + 6, Math.min(W - a.r - 6, a.x));
+      a.y = Math.max(a.r + 6, Math.min(H - a.r - 6, a.y));
+    }
+    TM.alpha *= 0.986;
+  }
+  function tmMeasure(){
+    var wrap = $('tagmap-wrap'), svg = $('tagmap-svg');
+    if (!wrap || !svg) return;
+    var W = Math.max(360, Math.floor(wrap.clientWidth || 900));
+    var H = Math.max(380, Math.min(820, Math.round(W * 0.6)));
+    TM.W = W; TM.H = H;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+  }
+  function tmRenderDom(){
+    var svg = $('tagmap-svg'); if (!svg) return;
+    svg.innerHTML = '';
+    var view = document.createElementNS(SVGNS, 'g');
+    var eg = document.createElementNS(SVGNS, 'g'), ng = document.createElementNS(SVGNS, 'g');
+    view.appendChild(eg); view.appendChild(ng); svg.appendChild(view);
+    TM.el = { view:view, edges:[], nodes:[] };
+    TM.edges.forEach(function(e){
+      var ln = document.createElementNS(SVGNS, 'line');
+      ln.setAttribute('stroke', '#8ea6c8'); ln.setAttribute('stroke-linecap', 'round');
+      ln.setAttribute('stroke-width', (0.8 + Math.min(4, Math.sqrt(e.w) * 1.1)).toFixed(2));
+      ln.setAttribute('stroke-opacity', (0.16 + Math.min(0.44, e.w * 0.08)).toFixed(2));
+      eg.appendChild(ln); TM.el.edges.push(ln);
+    });
+    TM.nodes.forEach(function(n){
+      var g = document.createElementNS(SVGNS, 'g');
+      g.style.cursor = 'grab';
+      var c = document.createElementNS(SVGNS, 'circle');
+      c.setAttribute('r', n.r); c.setAttribute('fill', n.color);
+      c.setAttribute('fill-opacity', '0.92'); c.setAttribute('stroke', 'var(--panel)'); c.setAttribute('stroke-width', '2');
+      var t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', Math.max(10, Math.min(13, n.r * 0.7)).toFixed(1));
+      t.setAttribute('fill', 'var(--text)'); t.setAttribute('stroke', 'var(--panel)');
+      t.setAttribute('stroke-width', '3'); t.setAttribute('paint-order', 'stroke');
+      t.setAttribute('pointer-events', 'none'); t.textContent = n.tag;
+      var ti = document.createElementNS(SVGNS, 'title');
+      ti.textContent = '#' + n.tag + ' · ' + n.count + ' 条';
+      g.appendChild(c); g.appendChild(t); g.appendChild(ti);
+      g.__n = n; g.__label = t;
+      g.addEventListener('click', function(){ if (TM.dragMoved) return; toggleTagFilter(n.tag, 'toggle'); });
+      g.addEventListener('pointerdown', tmNodeDown);
+      g.addEventListener('pointerenter', function(){ TM.hover = n.tag; tmHighlight(); });
+      g.addEventListener('pointerleave', function(){ TM.hover = null; tmHighlight(); });
+      ng.appendChild(g); TM.el.nodes.push(g);
+    });
+    tmApplyView(); tmApplyToggles(); tmUpdate();
+  }
+  function tmGraphPoint(ev){
+    var view = TM.el && TM.el.view;
+    if (!view) return { x:ev.clientX, y:ev.clientY };
+    var m = view.getScreenCTM();
+    if (!m) return { x:ev.clientX, y:ev.clientY };
+    var p = view.ownerSVGElement.createSVGPoint();
+    p.x = ev.clientX; p.y = ev.clientY;
+    return p.matrixTransform(m.inverse());
+  }
+  function tmApplyView(){
+    if (!TM.el) return;
+    TM.el.view.setAttribute('transform', 'translate(' + TM.view.x.toFixed(1) + ',' + TM.view.y.toFixed(1) + ') scale(' + TM.view.k.toFixed(3) + ')');
+  }
+  function tmApplyToggles(){
+    if (!TM.el) return;
+    TM.el.edges.forEach(function(ln){ ln.style.display = TM.showEdges ? '' : 'none'; });
+    TM.el.nodes.forEach(function(g){ if (g.__label) g.__label.style.display = TM.showLabels ? '' : 'none'; });
+  }
+  function tmUpdate(){
+    if (!TM.el) return;
+    var i, n, g, e, ln, a, b;
+    for (i=0;i<TM.nodes.length;i++){
+      n = TM.nodes[i]; g = TM.el.nodes[i];
+      if (!g) continue;
+      g.setAttribute('transform', 'translate(' + n.x.toFixed(1) + ',' + n.y.toFixed(1) + ')');
+      if (g.__label) g.__label.setAttribute('y', (n.r + 14).toFixed(1));
+    }
+    for (i=0;i<TM.edges.length;i++){
+      e = TM.edges[i]; ln = TM.el.edges[i];
+      a = TM.byTag[e.a]; b = TM.byTag[e.b];
+      if (!a || !b || !ln) continue;
+      ln.setAttribute('x1', a.x.toFixed(1)); ln.setAttribute('y1', a.y.toFixed(1));
+      ln.setAttribute('x2', b.x.toFixed(1)); ln.setAttribute('y2', b.y.toFixed(1));
+    }
+  }
+  function tmHighlight(){
+    if (!TM.el) return;
+    var focus = TM.hover, neighbors = {};
+    if (focus){
+      neighbors[focus] = true;
+      TM.edges.forEach(function(e){ if (e.a === focus) neighbors[e.b] = true; else if (e.b === focus) neighbors[e.a] = true; });
+    }
+    var sel = {};
+    filterTags.forEach(function(t){ sel[String(t)] = true; });
+    TM.nodes.forEach(function(n, i){
+      var g = TM.el.nodes[i]; if (!g) return;
+      g.setAttribute('opacity', (!focus || neighbors[n.tag]) ? '1' : '0.14');
+      var c = g.firstChild;
+      if (c){ c.setAttribute('stroke', sel[n.tag] ? 'var(--accent)' : 'var(--panel)'); c.setAttribute('stroke-width', sel[n.tag] ? '3.5' : '2'); }
+    });
+    TM.edges.forEach(function(e, j){
+      var ln = TM.el.edges[j]; if (!ln) return;
+      var on = !focus || e.a === focus || e.b === focus;
+      ln.setAttribute('stroke-opacity', on ? (0.18 + Math.min(0.5, e.w * 0.09)).toFixed(2) : '0.05');
+    });
+  }
+  function tmNodeDown(e){
+    e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+    var g = e.currentTarget; if (!g || !g.__n) return;
+    var p = tmGraphPoint(e);
+    TM.drag = { node:g.__n, dx:g.__n.x - p.x, dy:g.__n.y - p.y };
+    TM.dragMoved = false;
+    g.style.cursor = 'grabbing';
+    tmWake();
+  }
+  function tmPointerMove(e){
+    if (TM.drag){
+      var p = tmGraphPoint(e), n = TM.drag.node;
+      var nx = p.x + TM.drag.dx, ny = p.y + TM.drag.dy;
+      if (Math.abs(nx - n.x) + Math.abs(ny - n.y) > 1.5) TM.dragMoved = true;
+      n.x = nx; n.y = ny; n.vx = 0; n.vy = 0; n.fixed = true;
+      tmUpdate(); tmWake();
+    } else if (TM.pan){
+      TM.view.x = TM.pan.vx + (e.clientX - TM.pan.x) / TM.view.k;
+      TM.view.y = TM.pan.vy + (e.clientY - TM.pan.y) / TM.view.k;
+      tmApplyView();
+    }
+  }
+  function tmPointerUp(){
+    if (TM.drag){
+      TM.drag = null;
+      if (TM.el) TM.el.nodes.forEach(function(g){ g.style.cursor = 'grab'; });
+      setTimeout(function(){ TM.dragMoved = false; }, 0);
+    }
+    TM.pan = null;
+  }
+  function tmWheel(e){
+    if (!TM.el) return;
+    e.preventDefault();
+    var svg = TM.el.view.ownerSVGElement;
+    var m = svg.getScreenCTM(); if (!m) return;
+    var p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+    var s = p.matrixTransform(m.inverse());
+    var gx = (s.x - TM.view.x) / TM.view.k, gy = (s.y - TM.view.y) / TM.view.k;
+    var k2 = Math.max(0.35, Math.min(3.4, TM.view.k * (e.deltaY < 0 ? 1.12 : 0.89)));
+    TM.view.k = k2;
+    TM.view.x = s.x - gx * k2; TM.view.y = s.y - gy * k2;
+    tmApplyView();
+  }
+  function tmWake(){
+    TM.alpha = Math.max(TM.alpha, 0.32);
+    if (TM.open && !TM.raf) tmLoop();
+  }
+  function tmLoop(){
+    if (TM.raf) return;
+    var ticks = 0;
+    function frame(){
+      if (!TM.open){ TM.raf = 0; return; }
+      tmStep(); tmUpdate();
+      ticks++;
+      if (TM.alpha > 0.035 && ticks < 900) TM.raf = requestAnimationFrame(frame);
+      else TM.raf = 0;
+    }
+    TM.raf = requestAnimationFrame(frame);
+  }
+  function tmRefresh(){
+    if (!TM.open) return;
+    tmMeasure();
+    var sig = tmSignature();
+    if (sig !== TM.sig){ TM.sig = sig; tmBuild(); }
+    tmRenderDom(); tmHighlight(); tmWake();
+  }
+  function tmLegend(){
+    var box = $('tm-legend'); if (!box) return;
+    var h = '';
+    TM_GROUPS.forEach(function(g){ h += '<span><i style="background:' + g.color + '"></i>' + esc(g.name) + '</span>'; });
+    h += '<span><i style="background:#7b8a9e"></i>其他</span>';
+    box.innerHTML = h;
+  }
+  function tmOpen(){
+    var p = $('tagmap-panel'); if (!p) return;
+    p.className = 'panel';
+    TM.open = true;
+    tmMeasure();
+    tmLegend();
+    tmRefresh();
+    try { p.scrollIntoView({ behavior:'smooth', block:'start' }); } catch(_e){}
+  }
+  function tmClose(){
+    var p = $('tagmap-panel'); if (p) p.className = 'panel hidden';
+    TM.open = false;
+    if (TM.raf){ cancelAnimationFrame(TM.raf); TM.raf = 0; }
+  }
+  function tmToggle(){ if (TM.open) tmClose(); else tmOpen(); }
+
+  /* ---------- boot ---------- */
+  function boot(){
+    bind();
+    loading = true;
+    renderLayers();
+    renderTags();
+    loadTags();
+    loadState().then(loadAudit).catch(function(){});
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+</body>
+</html>

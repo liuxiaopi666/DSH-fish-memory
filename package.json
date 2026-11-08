@@ -1,0 +1,70 @@
+{
+  "name": "dsh-fish-memory",
+  "version": "1.0.0",
+  "description": "DSH 分层记忆插件：hot/recall/archive/cold 四层 + 回忆即强化 + 周期衰减 + 墓碑复活 + 内嵌可视化控制台。开箱空库、零依赖、数据全在本地。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    }
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/client.js",
+    "lib/dashboard.html",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "scripts/*.mjs",
+    "docs/*.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.7-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/store.test.mjs test/http.test.mjs test/plugin.test.mjs test/client.test.mjs test/live.test.mjs test/cli.test.mjs test/ingest.test.mjs",
+    "console": "node lib/standalone.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "memory",
+    "agent",
+    "llm",
+    "spaced-repetition"
+  ],
+  "author": "liuxiaopi666",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liuxiaopi666/dsh-fish-memory.git"
+  },
+  "homepage": "https://github.com/liuxiaopi666/dsh-fish-memory#readme",
+  "bugs": {
+    "url": "https://github.com/liuxiaopi666/dsh-fish-memory/issues"
+  }
+}
